@@ -25,6 +25,7 @@ Here is an example of how to start the conversation:
 
 // no api calls while testing
 const testing = false;
+const model = "gpt-3.5-turbo";
 
 export default async function (req, res) {
   if (!configuration.apiKey) {
@@ -52,21 +53,40 @@ export default async function (req, res) {
 
   try {
     if (testing) {
+      console.log(getMessagesPrompt(chat));
       setTimeout(() => {
         res.status(200).json({
           result: "Yay, currently testing",
         });
       }, 1000);
     } else {
-      const completion = await openai.createCompletion({
-        model: "text-davinci-003",
-        prompt: generatePrompt(chat),
-        temperature: 0.9,
-        max_tokens: 250,
-        presence_penalty: 0.6,
-        stop: ["AI:", "Me:"],
-      });
-      res.status(200).json({ result: completion.data.choices[0].text });
+      switch (model) {
+        case "gpt-3.5-turbo":
+          const turbo_completion = await openai.createChatCompletion({
+            model: "gpt-3.5-turbo",
+            messages: getMessagesPrompt(chat),
+            temperature: 0.9,
+            max_tokens: 250,
+            presence_penalty: 0.6,
+          });
+          res
+            .status(200)
+            .json({ result: turbo_completion.data.choices[0].message.content });
+          break;
+        case "text-davinci-003":
+          const davinci_completion = await openai.createCompletion({
+            model: "text-davinci-003",
+            prompt: generatePrompt(chat),
+            temperature: 0.9,
+            max_tokens: 250,
+            presence_penalty: 0.6,
+            stop: ["AI:", "Me:"],
+          });
+          res
+            .status(200)
+            .json({ result: davinci_completion.data.choices[0].text });
+          break;
+      }
     }
   } catch (error) {
     // Consider adjusting the error handling logic for your use case
@@ -82,6 +102,20 @@ export default async function (req, res) {
       });
     }
   }
+}
+
+function getMessagesPrompt(chat) {
+  let messages = [];
+  const system = { role: "system", content: pre_prompt };
+  messages.push(system);
+
+  chat.map((message) => {
+    const role = message.name == "Me" ? "user" : "assistant";
+    const m = { role: role, content: message.message };
+    messages.push(m);
+  });
+
+  return messages;
 }
 
 function generatePrompt(chat) {
